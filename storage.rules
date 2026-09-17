@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn(){ return request.auth != null; }
+    function isAdmin(){ return signedIn() && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true; }
+    match /products/{allPaths=**} { allow read: if true; allow write: if isAdmin(); }
+    match /settings/{allPaths=**} { allow read: if true; allow write: if isAdmin(); }
+    match /customer-uploads/{userId}/{allPaths=**} { allow read: if isAdmin() || (signedIn() && request.auth.uid == userId); allow write: if signedIn() && request.auth.uid == userId; }
+  }
+}
