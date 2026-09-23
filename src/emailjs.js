@@ -5,7 +5,7 @@
 // 4. Copy your Public Key from Account > General.
 // 5. Replace NOTIFY_EMAIL with the email address that should receive new-order alerts.
 // Until these are filled in, orders still place normally — email notifications are simply skipped.
-export const EMAILJS_SERVICE_ID = 'YOUR_SERVICE_ID';
-export const EMAILJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID';
-export const EMAILJS_PUBLIC_KEY = 'YOUR_PUBLIC_KEY';
-export const NOTIFY_EMAIL = 'YOUR_EMAIL@example.com';
+export const EMAILJS_SERVICE_ID = 'service_nclgdc9';
+export const EMAILJS_TEMPLATE_ID = 'template_zje3lxs';
+export const EMAILJS_PUBLIC_KEY = '84OVApKvV6apjkAUz';
+export const NOTIFY_EMAIL = 'swethahandmades1@gmail.com';
