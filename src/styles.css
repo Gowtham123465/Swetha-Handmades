@@ -19,4 +19,10 @@
 .whatsappFloat{position:fixed;right:22px;bottom:22px;width:58px;height:58px;border-radius:50%;background:#25D366;color:#fff;display:grid;place-items:center;box-shadow:0 10px 26px rgba(37,211,102,.4);z-index:80;text-decoration:none}.whatsappFloat:hover{transform:scale(1.05)}
 .signupPopup{position:fixed;inset:0;background:rgba(40,25,20,.45);display:grid;place-items:center;z-index:200;padding:20px}.signupPopupCard{position:relative;background:#fff;max-width:400px;width:100%;padding:32px 28px;border-radius:14px;text-align:center;box-shadow:var(--shadow)}.signupPopupCard svg{color:var(--pink)}.signupPopupCard h3{font-family:'Playfair Display';font-size:24px;font-weight:500;margin:12px 0 8px}.signupPopupCard p{color:var(--muted);font-size:13px;line-height:1.6;margin:0 0 18px}.signupPopupCard .textBtn{display:block;width:100%;justify-content:center;margin-top:10px;font-size:12px}.popupClose{position:absolute;top:10px;right:14px;font-size:22px;color:var(--muted);line-height:1}
 .paymentNote{font-size:11px;color:var(--muted);line-height:1.6;margin:14px 0}
-.poweredBy{color:#cbbfbb}
+.poweredBy{color:#cbbfbb}.poweredBy a{color:#cbbfbb;text-decoration:underline}.poweredBy a:hover{color:#fff}
+.contactIconsRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}.contactIconsRow .uploadBtn{margin-top:0}
+.contactPage{max-width:720px;text-align:center;margin-left:auto;margin-right:auto}.contactPage>p{color:var(--muted);margin-bottom:35px}
+.contactOptions{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.contactCard{display:flex;align-items:center;gap:16px;padding:26px;background:#fff;border:1px solid var(--line);border-radius:12px;text-align:left;text-decoration:none;color:inherit;transition:.2s}.contactCard:hover{transform:translateY(-3px);box-shadow:var(--shadow)}.contactCard b{display:block;font-size:16px;margin-bottom:4px}.contactCard span{font-size:12px;color:var(--muted)}
+.whatsappCard{color:#1e9e56}.whatsappCard svg{flex-shrink:0}.instaCard{color:var(--pink)}
+@media(max-width:700px){.contactOptions{grid-template-columns:1fr}}
