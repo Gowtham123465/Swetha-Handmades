@@ -34,7 +34,11 @@ The final run of 000 must return exactly these numbers.
 - `swethahandmades@gmail.com` already existed (created in the Dashboard, tagged `swetha`). With the owner's approval (option A), it was linked by setting `app_metadata.firebase_uid` and reused. The admin keeps the Dashboard password; the Firebase password was not imported.
 - Created "Gift Hampers" category (used by a product, missing in Firestore).
 - `4-validate.mjs`: all checks passed (counts, ₹3000 total, ₹2000 received, field-by-field match, 9 images returning 200).
-- Before cutover: re-run `npm run export` and `3-import-data.mjs --apply` for the final sync.
+
+## Cutover (2026-09-27)
+- 14:46 UTC: Firestore made read-only (`5-firebase-readonly.mjs --apply`, ruleset `c7f678c9…`). The previous live rules are saved in `scripts/migration/export/firestore-rules-before-cutover.rules` for rollback. Keep read-only until 2026-10-27, then archive and shut Firebase down.
+- Final sync with `3-import-data.mjs --apply --new-only`: +1 customer, +1 order (2 items). Admin edits made in Supabase were preserved.
+- Validation: counts, totals (₹6000) and images passed. "Amount received" and "SHT2VYS5 status" differ from Firebase only because of the admin's later edits in Supabase (expected).
 
 ## Schema
 - `swetha`
@@ -92,8 +96,9 @@ The final run of 000 must return exactly these numbers.
 - Nightly backup workflow: file ready at `supabase/backup/db-backup.yml`, to be enabled in a separate private repo (§14)
 
 ## Project-wide settings changed (shared with LAA)
-- 2026-09-27 Auth → Redirect URLs: was empty; added `https://laaindia.org/**` and `http://localhost:5173/**`. Site URL is still the default `http://localhost:3000`, to be set to Swetha's live domain.
-- Auth → SMTP (Gmail) and email templates (`supabase/email-templates/`): owner to configure.
+- 2026-09-27 Auth → Redirect URLs: was empty; now `https://laaindia.org/**`, `http://localhost:5173/**`, `https://swethahandmades.netlify.app/**`, `https://*--swethahandmades.netlify.app/**` (Netlify previews).
+- 2026-09-27 Auth → Site URL: `http://localhost:3000` (default) → `https://swethahandmades.netlify.app`.
+- 2026-09-27 Auth → SMTP: Gmail SMTP configured by the owner; sign-up confirmation and password reset tested.
 
 ## Outside Supabase (Netlify)
 - Function `netlify/functions/delete-account.mjs` (§16): deletes only `site = 'swetha'` non-admin users, using the `swetha_server` key

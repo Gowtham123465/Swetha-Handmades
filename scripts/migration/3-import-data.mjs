@@ -8,8 +8,21 @@ import {
 } from './lib.mjs';
 
 const APPLY = process.argv.includes('--apply');
+// Final sync after admins have edited data in Supabase: only add Firebase records not imported yet.
+const NEW_ONLY = process.argv.includes('--new-only');
 const supabase = supabaseAdmin();
 const fsData = readExport('firestore.json');
+const productIdsInFirestore = new Set(fsData.products.map((p) => p._id));
+if (NEW_ONLY) {
+  const existing = async (table) => new Set((await must(supabase.from(table).select('firebase_id').not('firebase_id', 'is', null), `read ${table}`)).map((r) => r.firebase_id));
+  const [cats, prods, ords] = await Promise.all([existing('categories'), existing('products'), existing('orders')]);
+  const before = { categories: fsData.categories.length, products: fsData.products.length, orders: fsData.orders.length };
+  fsData.categories = fsData.categories.filter((c) => !cats.has(c._id));
+  fsData.products = fsData.products.filter((p) => !prods.has(p._id));
+  fsData.orders = fsData.orders.filter((o) => !ords.has(o._id));
+  fsData.settings = [];
+  console.log(`--new-only: skipping already-imported records (categories ${before.categories - fsData.categories.length}, products ${before.products - fsData.products.length}, orders ${before.orders - fsData.orders.length}); store settings left as they are.`);
+}
 
 // The live site falls back to these when Firestore has no categories (src/main.jsx seedCategories).
 const SEED_CATEGORIES = {
@@ -73,7 +86,6 @@ for (const p of fsData.products) {
 }
 
 // ── Plan orders ──────────────────────────────────────────
-const productIdsInFirestore = new Set(fsData.products.map((p) => p._id));
 const orderPlans = [];
 let droppedPhotos = 0;
 for (const o of fsData.orders) {
@@ -204,6 +216,11 @@ for (const plan of productPlans) {
   await must(supabase.from('products').update({ image_paths: paths }).eq('id', saved.id), `product images ${plan.row.firebase_id}`);
   productByFb.set(plan.row.firebase_id, { id: saved.id, image: paths[0] ?? null });
   console.log(`  product ${plan.row.name}: ${paths.length} image(s)`);
+}
+
+// Products imported in an earlier run, so new orders still link to them.
+for (const p of await must(supabase.from('products').select('id, firebase_id, image_paths').not('firebase_id', 'is', null), 'read products')) {
+  if (!productByFb.has(p.firebase_id)) productByFb.set(p.firebase_id, { id: p.id, image: p.image_paths[0] ?? null });
 }
 
 const settingsUpdate = {};
