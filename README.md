@@ -60,7 +60,11 @@ Numbered, re-runnable SQL files in [supabase/migrations](supabase/migrations), r
 
 ## Backups
 
-[supabase/backup/db-backup.yml](supabase/backup/db-backup.yml) is the nightly `pg_dump` job from the guide. It must run in a **separate private repository** (the dumps contain both organisations' data). Instructions are at the top of the file.
+[supabase/backup/db-backup.yml](supabase/backup/db-backup.yml) is the nightly `pg_dump` job from the guide. It runs in the **private** repository `Gowtham123465/swetha-db-backups` (the dumps contain both organisations' data), with secret `SUPABASE_DB_URL` (Session pooler) and variable `PG_MAJOR=17`. Restore steps are in that repo's README.
+
+## Privacy
+
+The Privacy Policy page (footer → Privacy Policy, linked at checkout) lives in `src/main.jsx` (`Privacy`). Update it and its date whenever data handling changes (new provider, retention, payments).
 
 ## Firebase → Supabase migration and cutover
 
