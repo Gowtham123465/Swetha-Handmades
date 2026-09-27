@@ -43,6 +43,7 @@ The final run of 000 must return exactly these numbers.
 - 14:46 UTC: Firestore made read-only (`5-firebase-readonly.mjs --apply`, ruleset `c7f678c9…`). The previous live rules are saved in `scripts/migration/export/firestore-rules-before-cutover.rules` for rollback. Keep read-only until 2026-10-27, then archive and shut Firebase down.
 - Final sync with `3-import-data.mjs --apply --new-only`: +1 customer, +1 order (2 items). Admin edits made in Supabase were preserved.
 - 14:50 UTC: production deploy of `2afdebe` published on Netlify. The first attempt failed Netlify secret scanning because `SUPABASE_URL` was stored as a secret; it was re-saved as a normal variable.
+- Netlify Visitor access: team-login protection limited to non-production deploys, so **https://swethahandmades.netlify.app is public** (owner approved). Preview deploys stay protected.
 - After go-live, the 000 LAA check returned 11 / 37 / 17 / 3 / 5, **identical to the baseline**.
 - Validation: counts, totals (₹6000) and images passed. "Amount received" and "SHT2VYS5 status" differ from Firebase only because of the admin's later edits in Supabase (expected).
 
