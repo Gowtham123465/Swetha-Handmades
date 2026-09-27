@@ -114,7 +114,7 @@ The final run of 000 must return exactly these numbers.
 ## Not yet created (later steps)
 - Secret key `swetha_server` (owner, Dashboard → API Keys). The guide says `swetha-server`, but Supabase key names allow only lowercase letters, digits and underscores.
 - Netlify env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`
-- Nightly backup workflow: file ready at `supabase/backup/db-backup.yml`, to be enabled in a separate private repo (§14)
+- Nightly backup (§14): **running** in private repo `Gowtham123465/swetha-db-backups` at 02:00 IST (secret `SUPABASE_DB_URL`, variable `PG_MAJOR=17`). First successful run 2026-09-27 (run 36345226482): swetha, LAA public and auth dumps, kept 30 days. A test restore of the swetha dump is still to do (§14).
 
 ## Project-wide settings changed (shared with LAA)
 - 2026-09-27 Auth → Redirect URLs: was empty; now `https://laaindia.org/**`, `http://localhost:5173/**`, `https://swethahandmades.netlify.app/**`, `https://*--swethahandmades.netlify.app/**` (Netlify previews).
