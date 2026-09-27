@@ -2,6 +2,7 @@ import { supabase, BUCKET } from './supabase';
 
 export const STATUSES = ['Received', 'Confirmed', 'Preparing', 'Ready', 'Delivered', 'Cancelled'];
 export const DEFAULT_INSTAGRAM = 'https://www.instagram.com/swetha_handmades/';
+export const HERO_PATH = 'site/hero.webp';
 
 const rupees = (paise) => (paise || 0) / 100;
 export const toPaise = (rupeesValue) => Math.round(Number(rupeesValue || 0) * 100);
@@ -30,6 +31,8 @@ function mapProduct(r, categoryById) {
     personalised: r.is_personalised,
     maxPhotos: r.max_photos || 30,
     image: images[0] || '',
+    thumb: images[0] ? imageUrl(thumbPath(r.image_paths[0])) : '',
+    thumbs: (r.image_paths || []).map((p) => imageUrl(thumbPath(p))),
     images,
     imagePaths: r.image_paths || [],
   };
@@ -80,7 +83,12 @@ export async function loadCatalogue() {
   return {
     categories,
     products: ok(prods).map((r) => mapProduct(r, categoryById)),
-    settings: { instagram: s.instagram_url || DEFAULT_INSTAGRAM, heroImage: imageUrl(s.hero_image_path), heroPath: s.hero_image_path || null },
+    settings: {
+      instagram: s.instagram_url || DEFAULT_INSTAGRAM,
+      heroImage: imageUrl(s.hero_image_path),
+      heroSm: s.hero_image_path === HERO_PATH ? imageUrl(thumbPath(HERO_PATH)) : '',
+      heroPath: s.hero_image_path || null,
+    },
   };
 }
 
@@ -216,35 +224,45 @@ function canvasBlob(img, maxDim, type, quality) {
   return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 }
 
-export async function compressForUpload(file) {
+// Full size ~1200px ≤150 KB; small copies for cards/cart (≈480px) and the banner (640px).
+export async function compressForUpload(file, maxDim = 1200, maxKB = 150) {
   const img = await createImageBitmap(file);
   const probe = await canvasBlob(img, 8, 'image/webp', 0.8);
   const type = probe?.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
   let blob;
-  for (const [dim, q] of [[1200, 0.8], [1200, 0.7], [1100, 0.6], [1000, 0.55], [900, 0.5], [800, 0.45]]) {
-    blob = await canvasBlob(img, dim, type, q);
-    if (blob.size <= 150 * 1024) break;
+  for (const [f, q] of [[1, 0.8], [1, 0.7], [0.92, 0.6], [0.84, 0.55], [0.75, 0.5], [0.67, 0.45]]) {
+    blob = await canvasBlob(img, Math.round(maxDim * f), type, q);
+    if (blob.size <= maxKB * 1024) break;
   }
   return blob;
 }
 
-export async function uploadImage(path, blob) {
-  ok(await supabase.storage.from(BUCKET).upload(path, blob, { contentType: blob.type, cacheControl: '31536000', upsert: false }));
+export const makeThumbnail = (file) => compressForUpload(file, 480, 45);
+
+// Small copy lives next to the full image: products/<id>/<name>.webp → products/<id>/<name>-sm.webp
+export const thumbPath = (path) => path.replace(/(\.[a-z0-9]+)$/i, '-sm$1');
+
+export async function uploadImage(path, blob, { upsert = false, cacheControl = '31536000' } = {}) {
+  ok(await supabase.storage.from(BUCKET).upload(path, blob, { contentType: blob.type, cacheControl, upsert }));
   return path;
 }
 
 export async function removeImages(paths) {
   if (paths.length) ok(await supabase.storage.from(BUCKET).remove(paths));
 }
+const withThumbs = (paths) => paths.flatMap((p) => [p, thumbPath(p)]);
 
 const extFor = (blob) => (blob.type === 'image/webp' ? 'webp' : 'jpg');
 
-// images: [{ path }] for existing, [{ blob }] for new uploads, in display order.
+// images: [{ path }] for existing, [{ blob, thumb }] for new uploads, in display order.
 export async function saveProduct(id, fields, images, previousPaths) {
   const productId = id || crypto.randomUUID();
   const paths = [];
   for (const img of images) {
-    paths.push(img.path || (await uploadImage(`products/${productId}/${crypto.randomUUID()}.${extFor(img.blob)}`, img.blob)));
+    if (img.path) { paths.push(img.path); continue; }
+    const path = await uploadImage(`products/${productId}/${crypto.randomUUID()}.${extFor(img.blob)}`, img.blob);
+    if (img.thumb) await uploadImage(thumbPath(path), img.thumb);
+    paths.push(path);
   }
   const row = {
     name: fields.name.trim(),
@@ -258,12 +276,12 @@ export async function saveProduct(id, fields, images, previousPaths) {
   };
   if (id) ok(await supabase.from('products').update(row).eq('id', id));
   else ok(await supabase.from('products').insert({ id: productId, ...row }));
-  await removeImages((previousPaths || []).filter((p) => !paths.includes(p)));
+  await removeImages(withThumbs((previousPaths || []).filter((p) => !paths.includes(p))));
 }
 
 export async function deleteProduct(product) {
   ok(await supabase.from('products').delete().eq('id', product.id));
-  await removeImages(product.imagePaths);
+  await removeImages(withThumbs(product.imagePaths));
 }
 
 export async function saveCategory(id, name, icon) {
@@ -279,9 +297,12 @@ export async function saveInstagram(url) {
   ok(await supabase.from('store_settings').update({ instagram_url: url }).eq('singleton', true));
 }
 
-export async function saveHeroImage(blob, previousPath) {
-  const path = await uploadImage(`site/hero-${Date.now()}.${extFor(blob)}`, blob);
-  ok(await supabase.from('store_settings').update({ hero_image_path: path }).eq('singleton', true));
-  if (previousPath && previousPath !== path) await removeImages([previousPath]);
-  return path;
+// Fixed addresses so index.html can preload the banner before the app runs. Short cache so a
+// replaced banner shows within the hour.
+export async function saveHeroImage(full, small, previousPath) {
+  await uploadImage(HERO_PATH, full, { upsert: true, cacheControl: '3600' });
+  await uploadImage(thumbPath(HERO_PATH), small, { upsert: true, cacheControl: '3600' });
+  ok(await supabase.from('store_settings').update({ hero_image_path: HERO_PATH }).eq('singleton', true));
+  if (previousPath && previousPath !== HERO_PATH) await removeImages(withThumbs([previousPath]));
+  return HERO_PATH;
 }
