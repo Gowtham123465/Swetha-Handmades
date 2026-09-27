@@ -18,6 +18,7 @@ Every object Swetha creates in the shared Supabase project (guide §3 MUST 11). 
 | `009_swetha_storage_no_listing.sql` | replaces "public read" with "admin read" | Advisor fix: public URLs don't need a SELECT policy, and it allowed listing |
 | `010_swetha_keep_personalisation.sql` | replaces `place_order` | Keeps "Name / Text" and "Special Message" for every product, not only `is_personalised` ones |
 | `011_swetha_customer_photos.sql` | private bucket `swetha-customer-uploads` + 2 policies, `orders.closed_at`, `order_photos`, `admin_update_order` sets `closed_at` | Customer photo uploads (via Netlify function), 30-day retention |
+| `012_swetha_products_single_select_policy.sql` | replaces the 2 product SELECT policies with 1 per role | Performance Advisor fix; same access |
 
 ## LAA baseline (000, before any Swetha migration, 2026-09-27)
 | k | count |
@@ -84,7 +85,7 @@ The final run of 000 must return exactly these numbers.
 - `swetha admins: admins read`
 - `swetha customers: own row read` / `create own row` / `update own row`
 - `swetha categories: public read` / `admins insert` / `admins update` / `admins delete`
-- `swetha products: public read published` / `admins read all` / `admins insert` / `admins update` / `admins delete`
+- `swetha products: anon read published` / `signed-in read published or admin all` / `admins insert` / `admins update` / `admins delete` (012 merged the two old SELECT policies)
 - `swetha store_settings: public read` / `admins update`
 - `swetha orders: customer reads own`
 - `swetha order_items: read with own order`
@@ -99,6 +100,10 @@ The final run of 000 must return exactly these numbers.
 - Accepted by design (guide §6.2, §8): anon/authenticated can execute security definer `swetha.place_order`, `swetha.track_order` (guest checkout and tracking; validate all input, prices from DB, no address returned); authenticated can execute `swetha.admin_update_order` (checks `is_admin()`) and `swetha.is_admin()` (guide §6.2 verbatim).
 - Reported to owner, not changed (LAA/`public`): mutable search_path on `public.register_volunteer` and `public.current_admin_role`; listing on the 4 LAA public buckets; anon/authenticated execute on `public.current_admin_role` and `public.rls_auto_enable`.
 - Project-wide: leaked password protection disabled (owner decision; usually a paid-plan feature).
+
+## Performance Advisor (2026-09-27)
+- Fixed: `multiple_permissive_policies` on `swetha.products` (012).
+- Reported to owner, not changed (LAA/`public`): `auth_rls_initplan` on `public.admins` ("admins: self or super_admin can read"); `multiple_permissive_policies` on `public.admins`, `events`, `faqs`, `leadership`, `membership_plans`, `programs`, `resources` (35 warnings).
 
 ## Realtime
 - `supabase_realtime` publication: `swetha.orders` only
