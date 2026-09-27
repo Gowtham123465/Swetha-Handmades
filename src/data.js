@@ -53,9 +53,12 @@ function mapOrder(r) {
     status: titleCase(r.status),
     userId: r.customer_id,
     createdAt: r.created_at,
+    photoCount: r.order_photos?.[0]?.count || 0,
     items: [...(r.order_items || [])]
       .sort((a, b) => a.line_no - b.line_no)
       .map((i) => ({
+        itemId: i.id,
+        lineNo: i.line_no,
         name: i.product_name,
         qty: i.quantity,
         price: rupees(i.unit_price_paise),
@@ -83,7 +86,39 @@ export async function loadCatalogue() {
 
 // RLS returns only the customer's own orders, or all orders for a Swetha admin.
 export async function loadOrders() {
-  return ok(await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false })).map(mapOrder);
+  return ok(await supabase.from('orders').select('*, order_items(*), order_photos(count)').order('created_at', { ascending: false })).map(mapOrder);
+}
+
+// ── Customer photos (private bucket; uploads go through the Netlify function) ──
+const PHOTO_FN = '/.netlify/functions/upload-photos';
+
+async function photoFn(body, isJson) {
+  const res = await fetch(PHOTO_FN, isJson ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : { method: 'POST', body });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
+  return data;
+}
+
+export const photoStatus = (code, mobile) => photoFn({ action: 'status', order_code: code, mobile }, true);
+
+export function uploadPhoto(code, mobile, lineNo, blob) {
+  const form = new FormData();
+  form.append('order_code', code);
+  form.append('mobile', mobile);
+  form.append('line_no', String(lineNo));
+  form.append('file', blob, 'photo');
+  return photoFn(form, false);
+}
+
+export async function loadOrderPhotos(orderUuid) {
+  const rows = ok(await supabase.from('order_photos').select('id, order_item_id, storage_path, created_at').eq('order_id', orderUuid).order('created_at'));
+  if (!rows.length) return [];
+  const bucket = supabase.storage.from('swetha-customer-uploads');
+  const paths = rows.map((r) => r.storage_path);
+  const [view, download] = await Promise.all([bucket.createSignedUrls(paths, 3600), bucket.createSignedUrls(paths, 3600, { download: true })]);
+  ok(view);
+  ok(download);
+  return rows.map((r, i) => ({ ...r, url: view.data[i]?.signedUrl, downloadUrl: download.data[i]?.signedUrl }));
 }
 
 export async function placeOrder(form, cart) {

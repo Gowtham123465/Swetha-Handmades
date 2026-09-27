@@ -15,6 +15,9 @@ Every object Swetha creates in the shared Supabase project (guide §3 MUST 11). 
 | `006_swetha_orders.sql` | `orders`, `order_items`, Realtime on `orders` | |
 | `007_swetha_order_functions.sql` | `place_order`, `track_order`, `admin_update_order` | |
 | `008_swetha_storage.sql` | bucket `swetha-product-images` + 4 policies | |
+| `009_swetha_storage_no_listing.sql` | replaces "public read" with "admin read" | Advisor fix: public URLs don't need a SELECT policy, and it allowed listing |
+| `010_swetha_keep_personalisation.sql` | replaces `place_order` | Keeps "Name / Text" and "Special Message" for every product, not only `is_personalised` ones |
+| `011_swetha_customer_photos.sql` | private bucket `swetha-customer-uploads` + 2 policies, `orders.closed_at`, `order_photos`, `admin_update_order` sets `closed_at` | Customer photo uploads (via Netlify function), 30-day retention |
 
 ## LAA baseline (000, before any Swetha migration, 2026-09-27)
 | k | count |
@@ -38,6 +41,8 @@ The final run of 000 must return exactly these numbers.
 ## Cutover (2026-09-27)
 - 14:46 UTC: Firestore made read-only (`5-firebase-readonly.mjs --apply`, ruleset `c7f678c9…`). The previous live rules are saved in `scripts/migration/export/firestore-rules-before-cutover.rules` for rollback. Keep read-only until 2026-10-27, then archive and shut Firebase down.
 - Final sync with `3-import-data.mjs --apply --new-only`: +1 customer, +1 order (2 items). Admin edits made in Supabase were preserved.
+- 14:50 UTC: production deploy of `2afdebe` published on Netlify. The first attempt failed Netlify secret scanning because `SUPABASE_URL` was stored as a secret; it was re-saved as a normal variable.
+- After go-live, the 000 LAA check returned 11 / 37 / 17 / 3 / 5, **identical to the baseline**.
 - Validation: counts, totals (₹6000) and images passed. "Amount received" and "SHT2VYS5 status" differ from Firebase only because of the admin's later edits in Supabase (expected).
 
 ## Schema
@@ -53,6 +58,7 @@ The final run of 000 must return exactly these numbers.
 | `swetha.store_settings` | select | select; update (instagram_url, hero_image_path) | Swetha admins |
 | `swetha.orders` | none | select | Only through functions |
 | `swetha.order_items` | none | select | Only through functions |
+| `swetha.order_photos` | none | select (RLS: admins only) | Only the `upload-photos` Netlify function (secret key) |
 
 ## Functions
 | Function | Security | Execute granted to |
@@ -85,7 +91,14 @@ The final run of 000 must return exactly these numbers.
 
 ## Storage
 - Bucket `swetha-product-images` (public, 1 MB per file, jpeg/png/webp)
-- Policies on `storage.objects`: `swetha-product-images: public read` / `admin insert` / `admin update` / `admin delete`
+- Bucket `swetha-customer-uploads` (**private**, 1 MB per file, jpeg/png/webp). Policies: `swetha-customer-uploads: admin read` / `admin delete`. There are no customer or anon policies; uploads go only through the function. Paths: `<order uuid>/<line_no>/<uuid>.<ext>`
+- Policies on `storage.objects`: `swetha-product-images: admin read` / `admin insert` / `admin update` / `admin delete` (`public read` removed by 009; files are still served by public URL)
+
+## Security Advisor (2026-09-27, after go-live)
+- Fixed: `public_bucket_allows_listing` on `swetha-product-images` (009).
+- Accepted by design (guide §6.2, §8): anon/authenticated can execute security definer `swetha.place_order`, `swetha.track_order` (guest checkout and tracking; validate all input, prices from DB, no address returned); authenticated can execute `swetha.admin_update_order` (checks `is_admin()`) and `swetha.is_admin()` (guide §6.2 verbatim).
+- Reported to owner, not changed (LAA/`public`): mutable search_path on `public.register_volunteer` and `public.current_admin_role`; listing on the 4 LAA public buckets; anon/authenticated execute on `public.current_admin_role` and `public.rls_auto_enable`.
+- Project-wide: leaked password protection disabled (owner decision; usually a paid-plan feature).
 
 ## Realtime
 - `supabase_realtime` publication: `swetha.orders` only
@@ -102,3 +115,5 @@ The final run of 000 must return exactly these numbers.
 
 ## Outside Supabase (Netlify)
 - Function `netlify/functions/delete-account.mjs` (§16): deletes only `site = 'swetha'` non-admin users, using the `swetha_server` key
+- Function `netlify/functions/upload-photos.mjs`: customer photo upload, authorised by order code + mobile; only items whose product `is_personalised`, up to `max_photos`, open orders only; checks the image file signature
+- Scheduled function `netlify/functions/purge-customer-photos.mjs` (daily): deletes photos 30 days after `orders.closed_at`, plus any photo older than 90 days
