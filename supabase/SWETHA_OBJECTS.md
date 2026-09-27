@@ -19,6 +19,8 @@ Every object Swetha creates in the shared Supabase project (guide §3 MUST 11). 
 | `010_swetha_keep_personalisation.sql` | replaces `place_order` | Keeps "Name / Text" and "Special Message" for every product, not only `is_personalised` ones |
 | `011_swetha_customer_photos.sql` | private bucket `swetha-customer-uploads` + 2 policies, `orders.closed_at`, `order_photos`, `admin_update_order` sets `closed_at` | Customer photo uploads (via Netlify function), 30-day retention |
 | `012_swetha_products_single_select_policy.sql` | replaces the 2 product SELECT policies with 1 per role | Performance Advisor fix; same access |
+| `013_swetha_place_order_server_only.sql` | `place_order(… , p_customer_id uuid)`, execute: service_role only | Spam protection: orders go through `netlify/functions/place-order.mjs` (Turnstile) |
+| `014_swetha_drop_browser_place_order.sql` | drops the browser-callable `place_order(text ×9, jsonb)` | Run after the new site is live |
 
 ## LAA baseline (000, before any Swetha migration, 2026-09-27)
 | k | count |
@@ -69,7 +71,7 @@ The final run of 000 must return exactly these numbers.
 | `swetha.is_swetha_user()` | invoker | default |
 | `swetha.is_admin()` | definer | authenticated |
 | `swetha.set_updated_at()` | invoker | nobody (trigger only) |
-| `swetha.place_order(text ×9, jsonb)` | definer | anon, authenticated |
+| `swetha.place_order(text ×9, jsonb, uuid)` | definer | **service_role only** (013). The old anon/authenticated version was dropped by 014 |
 | `swetha.track_order(text, text)` | definer | anon, authenticated |
 | `swetha.admin_update_order(uuid, text, integer)` | definer | authenticated (checks `is_admin()`) |
 
@@ -122,4 +124,5 @@ The final run of 000 must return exactly these numbers.
 ## Outside Supabase (Netlify)
 - Function `netlify/functions/delete-account.mjs` (§16): deletes only `site = 'swetha'` non-admin users, using the `swetha_server` key
 - Function `netlify/functions/upload-photos.mjs`: customer photo upload, authorised by order code + mobile; only items whose product `is_personalised`, up to `max_photos`, open orders only; checks the image file signature
+- Function `netlify/functions/place-order.mjs`: verifies Cloudflare Turnstile (`TURNSTILE_SECRET_KEY`) and a hidden honeypot field, links signed-in Swetha customers, then calls `place_order` with the secret key
 - Scheduled function `netlify/functions/purge-customer-photos.mjs` (daily): deletes photos 30 days after `orders.closed_at`, plus any photo older than 90 days

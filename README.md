@@ -11,6 +11,8 @@ Single-page gift shop (React + Vite) backed by **Supabase**: Auth, Postgres (sch
 | `VITE_SUPABASE_URL` | `.env.local` + Netlify | `https://bzwxrmltwbmglxhwywhr.supabase.co` |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | `.env.local` + Netlify | Publishable key (`sb_publishable_…`), safe in the browser because of RLS |
 | `SUPABASE_URL` | Netlify only | Same URL, for the server function |
+| `VITE_TURNSTILE_SITE_KEY` | Netlify | Cloudflare Turnstile site key (public) |
+| `TURNSTILE_SECRET_KEY` | Netlify only | Cloudflare Turnstile secret key |
 | `SUPABASE_SECRET_KEY` | Netlify only | The `swetha_server` secret key. Never in Git, frontend code or chat |
 
 `.env.local` is git-ignored.
@@ -35,7 +37,7 @@ Push to `main`; Netlify runs `npm run build` and publishes `dist` (see `netlify.
 
 - **Catalogue** (`categories`, `products`, `store_settings`): anyone reads; only Swetha admins write, from `/admin`.
 - **Images:** compressed in the browser to WebP (~1200 px, ≤150 KB) and stored in the `swetha-product-images` bucket. Replaced or deleted images are removed from storage.
-- **Orders:** created only through `swetha.place_order`, which recomputes every price from `swetha.products`. Guests don't need to log in. Order codes look like `SH` + 6 characters.
+- **Orders:** created only through `netlify/functions/place-order.mjs`, which checks Cloudflare Turnstile and a honeypot field, then calls `swetha.place_order` (server-only), which recomputes every price from `swetha.products`. Guests don't need to log in. Order codes look like `SH` + 6 characters.
 - **Track Order:** `swetha.track_order(code, mobile)` returns only status and items (never the address), so it works on any device.
 - **Admin order changes:** status and amount received go through `swetha.admin_update_order`. Orders are never deleted (tax records); admins **Cancel** instead. New orders appear live in the admin panel (Realtime on `swetha.orders`).
 - **Personalisation:** "Name / Text" and "Special Message" are saved on every order item and shown in Admin → Orders → View (orders marked ✎).

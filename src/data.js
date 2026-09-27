@@ -129,27 +129,38 @@ export async function loadOrderPhotos(orderUuid) {
   return rows.map((r, i) => ({ ...r, url: view.data[i]?.signedUrl, downloadUrl: download.data[i]?.signedUrl }));
 }
 
-export async function placeOrder(form, cart) {
-  const res = ok(
-    await supabase.rpc('place_order', {
-      p_name: form.name,
-      p_mobile: form.mobile,
-      p_email: form.email,
-      p_address_line1: form.address1,
-      p_address_line2: form.address2,
-      p_landmark: form.landmark,
-      p_city: form.city,
-      p_pincode: form.pincode,
-      p_notes: form.notes,
-      p_items: cart.map((i) => ({
-        product_id: i.id,
-        quantity: i.qty,
-        custom_name: i.custom?.name || null,
-        custom_message: i.custom?.message || null,
-      })),
+// Orders go through netlify/functions/place-order.mjs, which checks Cloudflare Turnstile first.
+export async function placeOrder(form, cart, { turnstileToken, website }) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch('/.netlify/functions/place-order', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(session ? { authorization: `Bearer ${session.access_token}` } : {}) },
+    body: JSON.stringify({
+      form,
+      website,
+      turnstile_token: turnstileToken,
+      items: cart.map((i) => ({ product_id: i.id, quantity: i.qty, custom_name: i.custom?.name || null, custom_message: i.custom?.message || null })),
     }),
-  );
-  return { code: res.order_code, total: rupees(res.total_paise), createdAt: res.created_at };
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Could not place the order. Please try again.');
+  return { code: data.order_code, total: rupees(data.total_paise), createdAt: data.created_at };
+}
+
+// Cloudflare Turnstile (spam protection). Site key is public; in local dev Cloudflare's always-pass test key is used.
+export const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || (import.meta.env.DEV ? '1x00000000000000000000AA' : '');
+let turnstileScript;
+export function loadTurnstile() {
+  if (window.turnstile) return Promise.resolve(window.turnstile);
+  turnstileScript ||= new Promise((resolve, reject) => {
+    const el = document.createElement('script');
+    el.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    el.async = true;
+    el.onload = () => resolve(window.turnstile);
+    el.onerror = () => { turnstileScript = null; reject(new Error('Could not load the verification check')); };
+    document.head.appendChild(el);
+  });
+  return turnstileScript;
 }
 
 export async function trackOrder(code, mobile) {
