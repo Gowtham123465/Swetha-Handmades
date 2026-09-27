@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /checkout
+Disallow: /cart
+Disallow: /account
+
+Sitemap: https://swethahandmades.netlify.app/sitemap.xml

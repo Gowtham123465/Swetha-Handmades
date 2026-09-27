@@ -1,0 +1,12 @@
+{
+  "name": "Swetha Handmades",
+  "short_name": "Swetha",
+  "icons": [
+    { "src": "/favicon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/favicon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "theme_color": "#cf2a5e",
+  "background_color": "#fff8f3",
+  "display": "browser",
+  "start_url": "/"
+}
