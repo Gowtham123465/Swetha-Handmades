@@ -6,4 +6,5 @@
   <url><loc>https://swethahandmades.netlify.app/contact</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://swethahandmades.netlify.app/track</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
   <url><loc>https://swethahandmades.netlify.app/privacy</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://swethahandmades.netlify.app/terms</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
 </urlset>
