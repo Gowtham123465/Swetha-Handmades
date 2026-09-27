@@ -1,0 +1,99 @@
+# Swetha Handmades: Supabase objects
+
+Every object Swetha creates in the shared Supabase project (guide §3 MUST 11). Nothing here is in `public` or belongs to LAA India.
+
+## Run order (SQL Editor, one file at a time)
+
+| File | Creates | Notes |
+|---|---|---|
+| `000_laa_snapshot_check.sql` | nothing (read-only) | Run before 001 and after 008. Outputs must match. |
+| `001_swetha_schema.sql` | schema `swetha`, grants, default privileges for `service_role` | Then add `swetha` to Data API → Exposed schemas (keep `public`). |
+| `002_swetha_user_site_tag.sql` | trigger on `auth.users`, backfills `site = 'laa'` | Owner confirmed 2026-09-27: the only existing user is the LAA admin. Verify afterwards that it shows `site = 'laa'`. |
+| `003_swetha_helpers.sql` | `admins`, helper functions | |
+| `004_swetha_customers.sql` | `customers` | |
+| `005_swetha_catalogue.sql` | `categories`, `products`, `store_settings` | |
+| `006_swetha_orders.sql` | `orders`, `order_items`, Realtime on `orders` | |
+| `007_swetha_order_functions.sql` | `place_order`, `track_order`, `admin_update_order` | |
+| `008_swetha_storage.sql` | bucket `swetha-product-images` + 4 policies | |
+
+## LAA baseline (000, before any Swetha migration, 2026-09-27)
+| k | count |
+|---|---|
+| tables | 11 |
+| policies | 37 |
+| storage policies (LAA) | 17 |
+| functions | 3 |
+| buckets (LAA) | 5 |
+
+The final run of 000 must return exactly these numbers.
+
+**2026-09-27:** 001–008 applied. `swetha` added to Exposed schemas. LAA admin tagged `site = 'laa'`. All 7 tables have RLS on. The 000 re-check was identical to the baseline.
+
+## Migration rehearsal import (2026-09-27)
+- Firebase: 2 products (8 images), 1 category, 1 order (2 items), 1 real account, 45 anonymous guest sessions (skipped).
+- `swethahandmades@gmail.com` already existed (created in the Dashboard, tagged `swetha`). With the owner's approval (option A), it was linked by setting `app_metadata.firebase_uid` and reused. The admin keeps the Dashboard password; the Firebase password was not imported.
+- Created "Gift Hampers" category (used by a product, missing in Firestore).
+- `4-validate.mjs`: all checks passed (counts, ₹3000 total, ₹2000 received, field-by-field match, 9 images returning 200).
+- Before cutover: re-run `npm run export` and `3-import-data.mjs --apply` for the final sync.
+
+## Schema
+- `swetha`
+
+## Tables (all RLS enabled)
+| Table | anon | authenticated | Who can write |
+|---|---|---|---|
+| `swetha.admins` | none | select | Owner, by hand in SQL |
+| `swetha.customers` | none | select; insert (id, full_name, phone); update (full_name, phone) | Customer, own row |
+| `swetha.categories` | select | select, insert, update, delete | Swetha admins |
+| `swetha.products` | select | select, insert, update, delete | Swetha admins |
+| `swetha.store_settings` | select | select; update (instagram_url, hero_image_path) | Swetha admins |
+| `swetha.orders` | none | select | Only through functions |
+| `swetha.order_items` | none | select | Only through functions |
+
+## Functions
+| Function | Security | Execute granted to |
+|---|---|---|
+| `swetha.tag_new_user_site()` (002) | definer | nobody (trigger only) |
+| `swetha.is_swetha_user()` | invoker | default |
+| `swetha.is_admin()` | definer | authenticated |
+| `swetha.set_updated_at()` | invoker | nobody (trigger only) |
+| `swetha.place_order(text ×9, jsonb)` | definer | anon, authenticated |
+| `swetha.track_order(text, text)` | definer | anon, authenticated |
+| `swetha.admin_update_order(uuid, text, integer)` | definer | authenticated (checks `is_admin()`) |
+
+## Triggers
+- `swetha_tag_new_user_site` on `auth.users` (002, the only Swetha object outside `swetha`/`storage`)
+- `swetha_admins_updated_at`, `swetha_customers_updated_at`, `swetha_categories_updated_at`, `swetha_products_updated_at`, `swetha_store_settings_updated_at`, `swetha_orders_updated_at`, `swetha_order_items_updated_at`
+
+## Indexes (beyond primary keys and unique constraints)
+- `swetha_products_category_id_idx`, `swetha_products_is_published_idx`
+- `swetha_orders_customer_created_idx`, `swetha_orders_created_at_idx`
+- `swetha_order_items_product_id_idx` (`order_id` is covered by the unique `(order_id, line_no)`)
+
+## RLS policies
+- `swetha admins: admins read`
+- `swetha customers: own row read` / `create own row` / `update own row`
+- `swetha categories: public read` / `admins insert` / `admins update` / `admins delete`
+- `swetha products: public read published` / `admins read all` / `admins insert` / `admins update` / `admins delete`
+- `swetha store_settings: public read` / `admins update`
+- `swetha orders: customer reads own`
+- `swetha order_items: read with own order`
+
+## Storage
+- Bucket `swetha-product-images` (public, 1 MB per file, jpeg/png/webp)
+- Policies on `storage.objects`: `swetha-product-images: public read` / `admin insert` / `admin update` / `admin delete`
+
+## Realtime
+- `supabase_realtime` publication: `swetha.orders` only
+
+## Not yet created (later steps)
+- Secret key `swetha_server` (owner, Dashboard → API Keys). The guide says `swetha-server`, but Supabase key names allow only lowercase letters, digits and underscores.
+- Netlify env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`
+- Nightly backup workflow: file ready at `supabase/backup/db-backup.yml`, to be enabled in a separate private repo (§14)
+
+## Project-wide settings changed (shared with LAA)
+- 2026-09-27 Auth → Redirect URLs: was empty; added `https://laaindia.org/**` and `http://localhost:5173/**`. Site URL is still the default `http://localhost:3000`, to be set to Swetha's live domain.
+- Auth → SMTP (Gmail) and email templates (`supabase/email-templates/`): owner to configure.
+
+## Outside Supabase (Netlify)
+- Function `netlify/functions/delete-account.mjs` (§16): deletes only `site = 'swetha'` non-admin users, using the `swetha_server` key

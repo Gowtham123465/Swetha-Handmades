@@ -1,0 +1,17 @@
+{
+  "name": "swetha-firebase-to-supabase",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.12" },
+  "scripts": {
+    "export": "node --env-file=.env 1-export-firebase.mjs",
+    "import-users": "node --env-file=.env 2-import-users.mjs",
+    "import-data": "node --env-file=.env 3-import-data.mjs",
+    "validate": "node --env-file=.env 4-validate.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.0",
+    "firebase-admin": "^13.4.0",
+    "sharp": "^0.34.3"
+  }
+}

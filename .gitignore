@@ -4,3 +4,4 @@ dist/
 .env.*
 .firebase/
 "Claude outputs/" 
+.netlify/

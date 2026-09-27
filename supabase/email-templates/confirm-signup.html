@@ -1,0 +1,16 @@
+<!-- Supabase → Authentication → Emails → Templates → "Confirm signup". Subject:
+{{ if eq .Data.site "swetha" }}Confirm your Swetha Handmades account{{ else }}Confirm your email{{ end }}
+Templates are project-wide (shared with LAA India). .Data.site is set by the Swetha sign-up form and is
+used for branding only, never for security (guide §7). -->
+{{ if eq .Data.site "swetha" }}
+<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;color:#3b2a2f">
+  <h2 style="color:#d6336c">Welcome to Swetha Handmades ♥</h2>
+  <p>Hi {{ .Data.full_name }},</p>
+  <p>Thanks for creating an account. Please confirm your email address to finish signing up:</p>
+  <p><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#d6336c;color:#fff;padding:12px 22px;border-radius:24px;text-decoration:none">Confirm my email</a></p>
+  <p style="font-size:13px;color:#7a6a6f">If you didn't sign up, you can ignore this email.</p>
+</div>
+{{ else }}
+<p>Please confirm your email address:</p>
+<p><a href="{{ .ConfirmationURL }}">Confirm email</a></p>
+{{ end }}

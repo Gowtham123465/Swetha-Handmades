@@ -1,0 +1,30 @@
+# Guide §14, verbatim. Do NOT enable this in the Swetha website repo.
+# The dumps contain personal data from BOTH organisations (Swetha and LAA India), so it must run in a
+# separate PRIVATE repository with minimal access. Copy this file to that repo as
+# .github/workflows/db-backup.yml, then add:
+#   - secret   SUPABASE_DB_URL = Session pooler connection string (Dashboard → Connect)
+#   - variable PG_MAJOR        = major version from `select version();` (e.g. 15 or 17)
+name: Nightly Supabase backup
+on:
+  schedule: [{ cron: "30 20 * * *" }]   # 02:00 IST
+  workflow_dispatch: {}
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL client matching the server
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -so /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update && sudo apt-get install -y postgresql-client-${{ vars.PG_MAJOR }}
+      - name: Dump each site separately
+        env: { DB_URL: "${{ secrets.SUPABASE_DB_URL }}" }
+        run: |
+          D=$(date +%F); mkdir out
+          PGD=/usr/lib/postgresql/${{ vars.PG_MAJOR }}/bin/pg_dump
+          $PGD "$DB_URL" --schema=swetha --no-owner --no-privileges -Fc -f out/swetha-$D.dump
+          $PGD "$DB_URL" --schema=public --no-owner --no-privileges -Fc -f out/laa-public-$D.dump
+          $PGD "$DB_URL" --table=auth.users --table=auth.identities --data-only -Fc -f out/auth-$D.dump
+      - uses: actions/upload-artifact@v4
+        with: { name: "db-backup-${{ github.run_id }}", path: out/, retention-days: 30 }

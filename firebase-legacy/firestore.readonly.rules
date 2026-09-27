@@ -1,0 +1,14 @@
+rules_version = '2';
+// Deployed at cutover: Firebase becomes READ-ONLY for the 30-day rollback window (guide §11.4).
+// Reads are unchanged from the last live rules; every write is denied.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn(){ return request.auth != null; }
+    function isAdmin(){ return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true; }
+    match /users/{userId} { allow read: if signedIn() && (request.auth.uid == userId || isAdmin()); allow write: if false; }
+    match /products/{id} { allow read: if true; allow write: if false; }
+    match /categories/{id} { allow read: if true; allow write: if false; }
+    match /settings/{id} { allow read: if true; allow write: if false; }
+    match /orders/{id} { allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid); allow write: if false; }
+  }
+}

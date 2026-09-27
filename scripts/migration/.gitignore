@@ -1,0 +1,6 @@
+# Secrets and personal data: never commit (guide §3, §12, §16)
+.env
+*service-account*.json
+export/
+node_modules/
+!.env.example
