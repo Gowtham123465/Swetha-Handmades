@@ -26,6 +26,8 @@ function mapProduct(r, categoryById) {
     categoryId: r.category_id,
     category: categoryById.get(r.category_id)?.name || '',
     price: rupees(r.price_paise),
+    priceMax: r.price_max_paise ? rupees(r.price_max_paise) : null,
+    priceNote: r.price_note || '',
     badge: r.badge || '',
     desc: r.description || '',
     personalised: r.is_personalised,
@@ -56,6 +58,8 @@ function mapOrder(r) {
     status: titleCase(r.status),
     userId: r.customer_id,
     createdAt: r.created_at,
+    deliveryDate: r.requested_delivery_date || null,
+    trackingUrl: r.tracking_url || '',
     photoCount: r.order_photos?.[0]?.count || 0,
     items: [...(r.order_items || [])]
       .sort((a, b) => a.line_no - b.line_no)
@@ -171,6 +175,8 @@ export async function trackOrder(code, mobile) {
     status: titleCase(r.status),
     createdAt: r.created_at,
     total: rupees(r.total_paise),
+    deliveryDate: r.requested_delivery_date || null,
+    trackingUrl: r.tracking_url || '',
     items: r.items.map((i) => ({ name: i.product_name, qty: i.quantity, price: rupees(i.unit_price_paise) })),
   };
 }
@@ -212,12 +218,13 @@ export async function deleteMyAccount() {
   await supabase.auth.signOut({ scope: 'local' });
 }
 
-export async function adminUpdateOrder(uuid, { status, amountReceived }) {
+export async function adminUpdateOrder(uuid, { status, amountReceived, trackingUrl }) {
   ok(
     await supabase.rpc('admin_update_order', {
       p_order_id: uuid,
       p_status: status ? status.toLowerCase() : null,
       p_amount_received_paise: amountReceived === undefined ? null : toPaise(amountReceived),
+      p_tracking_url: trackingUrl === undefined ? null : trackingUrl.trim(),
     }),
   );
 }
@@ -279,6 +286,8 @@ export async function saveProduct(id, fields, images, previousPaths) {
     name: fields.name.trim(),
     category_id: fields.categoryId,
     price_paise: toPaise(fields.price),
+    price_max_paise: Number(fields.priceMax) > Number(fields.price) ? toPaise(fields.priceMax) : null,
+    price_note: fields.priceNote?.trim().slice(0, 200) || null,
     description: fields.desc?.trim() || null,
     badge: fields.badge || null,
     is_personalised: !!fields.personalised,

@@ -44,6 +44,10 @@ export default async (req) => {
   }
 
   const f = input.form || {};
+  // Preferred delivery date is required; the database also enforces at least 15 days ahead (India time).
+  if (typeof f.delivery_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(f.delivery_date)) {
+    return json(400, { error: 'Please choose a delivery date' });
+  }
   const items = Array.isArray(input.items) ? input.items.slice(0, 50) : [];
   const { data, error } = await db.rpc('place_order', {
     p_name: text(f.name, 200),
@@ -62,6 +66,7 @@ export default async (req) => {
       custom_message: text(i?.custom_message, 600),
     })),
     p_customer_id: customerId,
+    p_delivery_date: f.delivery_date,
   });
   if (error) {
     // 22023 = the database's own customer-facing validation messages.

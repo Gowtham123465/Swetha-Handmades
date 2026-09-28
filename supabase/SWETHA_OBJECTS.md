@@ -21,6 +21,7 @@ Every object Swetha creates in the shared Supabase project (guide §3 MUST 11). 
 | `012_swetha_products_single_select_policy.sql` | replaces the 2 product SELECT policies with 1 per role | Performance Advisor fix; same access |
 | `013_swetha_place_order_server_only.sql` | `place_order(… , p_customer_id uuid)`, execute: service_role only | Spam protection: orders go through `netlify/functions/place-order.mjs` (Turnstile) |
 | `014_swetha_drop_browser_place_order.sql` | drops the browser-callable `place_order(text ×9, jsonb)` | Run after the new site is live |
+| `015_swetha_delivery_date_tracking_price_range.sql` | `orders.requested_delivery_date`, `orders.tracking_url`, `products.price_max_paise`, `products.price_note`; `place_order(…, uuid, date)`, `admin_update_order(uuid, text, integer, text)`, `track_order` returns date + link | Delivery date ≥ 15 days ahead (IST), courier tracking link, price ranges |
 
 ## LAA baseline (000, before any Swetha migration, 2026-09-27)
 | k | count |
@@ -71,9 +72,9 @@ The final run of 000 must return exactly these numbers.
 | `swetha.is_swetha_user()` | invoker | default |
 | `swetha.is_admin()` | definer | authenticated |
 | `swetha.set_updated_at()` | invoker | nobody (trigger only) |
-| `swetha.place_order(text ×9, jsonb, uuid)` | definer | **service_role only** (013). The old anon/authenticated version was dropped by 014 |
+| `swetha.place_order(text ×9, jsonb, uuid, date)` | definer | **service_role only** (013/015). Checks delivery date ≥ today + 15 days (IST) |
 | `swetha.track_order(text, text)` | definer | anon, authenticated |
-| `swetha.admin_update_order(uuid, text, integer)` | definer | authenticated (checks `is_admin()`) |
+| `swetha.admin_update_order(uuid, text, integer, text)` | definer | authenticated (checks `is_admin()`); last arg = tracking link |
 
 ## Triggers
 - `swetha_tag_new_user_site` on `auth.users` (002, the only Swetha object outside `swetha`/`storage`)
